@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f7f4ef">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="猛健樂紀錄">
+  <meta name="description" content="個人注射、體重、飲水與購買紀錄">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <link rel="stylesheet" href="./styles.css">
+  <title>猛健樂紀錄</title>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">PERSONAL TRACKER</div>
+      <h1>猛健樂紀錄</h1>
+    </div>
+    <button id="syncStatus" class="sync-pill" type="button">尚未設定同步</button>
+  </header>
+
+  <main>
+    <section id="page-home" class="page active">
+      <div class="hero-card">
+        <div class="hero-top"><span>目前體重</span><span id="homeWeightDate" class="muted">尚無紀錄</span></div>
+        <div class="hero-value"><strong id="homeWeight">--</strong><span>kg</span></div>
+        <div id="homeWeightChange" class="muted">新增第一筆體重紀錄</div>
+        <div class="hero-divider"></div>
+        <div class="home-stats">
+          <div><span>今日飲水</span><strong id="homeWater">0 ml</strong></div>
+          <div><span>累計購買</span><strong id="homeCost">$0</strong></div>
+          <div><span>最近注射</span><strong id="homeInjection">尚無</strong></div>
+        </div>
+      </div>
+      <div class="section-heading"><h2>快速記錄</h2><span class="muted">選擇一項開始</span></div>
+      <div class="quick-grid">
+        <button class="quick-card" data-go="injection"><span class="quick-icon purple">✚</span><b>注射紀錄</b><small>時間、劑量、位置</small></button>
+        <button class="quick-card" data-go="weight"><span class="quick-icon blue">⚖</span><b>體重紀錄</b><small>每日一筆、趨勢圖</small></button>
+        <button class="quick-card" data-go="water"><span class="quick-icon cyan">滴</span><b>喝水紀錄</b><small>每日飲水量</small></button>
+        <button class="quick-card" data-go="purchase"><span class="quick-icon amber">$</span><b>購買紀錄</b><small>金額、數量、單價</small></button>
+      </div>
+      <div class="section-heading"><h2>最近注射</h2><button class="text-button" data-go="injection">查看全部</button></div>
+      <div id="recentInjection" class="list-card empty">尚無注射紀錄</div>
+      <div class="section-heading"><h2>資料與同步</h2></div>
+      <div class="list-card settings-shortcut">
+        <div><b>資料備份與 Google Drive</b><p class="muted">本機優先，雲端同步需先完成 Google 設定</p></div>
+        <button class="outline-button" data-go="settings">設定</button>
+      </div>
+    </section>
+
+    <section id="page-injection" class="page">
+      <div class="page-title"><h2>注射紀錄</h2><p>記錄每次注射的時間、劑量與位置</p></div>
+      <form id="injectionForm" class="panel">
+        <input type="hidden" id="injectionId">
+        <label>注射日期與時間<input id="injectionDate" type="datetime-local" required></label>
+        <label>注射劑量
+          <select id="injectionDose">
+            <option value="2.5">2.5 mg</option><option value="5">5 mg</option><option value="7.5">7.5 mg</option>
+            <option value="10">10 mg</option><option value="12.5">12.5 mg</option><option value="15">15 mg</option>
+            <option value="custom">自訂劑量</option>
+          </select>
+        </label>
+        <label id="customDoseWrap" class="hidden">自訂劑量（mg）<input id="customDose" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="輸入劑量"></label>
+        <div class="label-row"><span>腹部位置</span><span class="muted tiny">選擇本次記錄區域</span></div>
+        <div class="abdomen-wrap">
+          <div class="abdomen">
+            <div class="body-shape"></div>
+            <div class="navel"></div>
+            <div class="navel-label">肚臍<br>避開區</div>
+            <button type="button" class="site site-1" data-site="1">1</button>
+            <button type="button" class="site site-2" data-site="2">2</button>
+            <button type="button" class="site site-3" data-site="3">3</button>
+            <button type="button" class="site site-4" data-site="4">4</button>
+            <button type="button" class="site site-5" data-site="5">5</button>
+            <button type="button" class="site site-6" data-site="6">6</button>
+            <button type="button" class="site site-7" data-site="7">7</button>
+            <button type="button" class="site site-8" data-site="8">8</button>
+          </div>
+          <div class="site-legend"><span>本人左側</span><span>本人右側</span></div>
+          <p id="selectedSiteText" class="selected-site">尚未選擇位置</p>
+        </div>
+        <label>備註（選填）<textarea id="injectionNote" rows="2" placeholder="例如：注射處有輕微泛紅"></textarea></label>
+        <div class="form-actions"><button class="primary-button" type="submit">儲存注射紀錄</button><button id="cancelInjectionEdit" class="outline-button hidden" type="button">取消編輯</button></div>
+      </form>
+      <div class="section-heading"><h2>歷史紀錄</h2><span id="injectionCount" class="muted"></span></div>
+      <div id="injectionList" class="record-list"></div>
+    </section>
+
+    <section id="page-weight" class="page">
+      <div class="page-title"><h2>體重紀錄</h2><p>每天一筆，觀察長期變化</p></div>
+      <form id="weightForm" class="panel compact-form">
+        <input type="hidden" id="weightId">
+        <div class="two-col"><label>日期<input id="weightDate" type="date" required></label><label>體重（kg）<input id="weightValue" type="number" min="0.1" max="500" step="0.1" inputmode="decimal" placeholder="例如 68.5" required></label></div>
+        <label>備註（選填）<input id="weightNote" type="text" placeholder="例如：起床後測量"></label>
+        <div class="form-actions"><button class="primary-button" type="submit">儲存體重</button><button id="cancelWeightEdit" class="outline-button hidden" type="button">取消編輯</button></div>
+      </form>
+      <div class="segmented"><button class="selected" data-weight-view="chart">折線圖</button><button data-weight-view="list">列表</button></div>
+      <div id="weightChartPanel" class="panel chart-panel">
+        <div class="chart-head"><b>體重趨勢</b><select id="weightRange" aria-label="圖表期間"><option value="7">近 7 天</option><option value="30" selected>近 30 天</option><option value="90">近 90 天</option><option value="all">全部</option></select></div>
+        <div id="weightChart" class="chart"><div class="empty">新增體重紀錄後顯示趨勢</div></div>
+        <div id="weightSummary" class="chart-summary"></div>
+      </div>
+      <div id="weightListPanel" class="record-list hidden"></div>
+    </section>
+
+    <section id="page-water" class="page">
+      <div class="page-title"><h2>喝水紀錄</h2><p>記錄每日飲水量</p></div>
+      <div class="panel water-panel">
+        <div class="water-date-row"><label>日期<input id="waterDate" type="date"></label><label>每日目標（ml）<input id="waterGoal" type="number" min="1" step="50" value="2000"></label></div>
+        <div class="water-total"><strong id="waterTotal">0</strong><span> / <span id="waterGoalText">2000</span> ml</span></div>
+        <div class="progress-track"><div id="waterProgress" class="progress-fill"></div></div>
+        <div class="water-buttons"><button class="water-add" data-water="250">＋ 250 ml</button><button class="water-add" data-water="500">＋ 500 ml</button></div>
+        <form id="customWaterForm" class="custom-water"><input id="customWater" type="number" min="1" step="1" placeholder="自訂容量 ml" inputmode="numeric"><button class="primary-button" type="submit">新增</button></form>
+      </div>
+      <div class="section-heading"><h2>當日飲水明細</h2><span class="muted">可刪除單筆</span></div>
+      <div id="waterList" class="record-list"></div>
+    </section>
+
+    <section id="page-purchase" class="page">
+      <div class="page-title"><h2>購買紀錄</h2><p>追蹤購買金額與累計花費</p></div>
+      <div class="panel purchase-summary"><span>累計購買金額</span><strong id="purchaseTotal">$0</strong></div>
+      <form id="purchaseForm" class="panel">
+        <input type="hidden" id="purchaseId">
+        <label>購買日期<input id="purchaseDate" type="date" required></label>
+        <div class="two-col"><label>總金額（元）<input id="purchaseAmount" type="number" min="0" step="1" inputmode="decimal" required></label><label>數量<input id="purchaseQuantity" type="number" min="0.01" step="0.01" value="1" required></label></div>
+        <label>備註（選填）<input id="purchaseNote" type="text" placeholder="例如：購買規格、通路"></label>
+        <p class="calculated">單位平均金額：<b id="unitPrice">$0</b></p>
+        <div class="form-actions"><button class="primary-button" type="submit">儲存購買紀錄</button><button id="cancelPurchaseEdit" class="outline-button hidden" type="button">取消編輯</button></div>
+      </form>
+      <div class="section-heading"><h2>購買歷史</h2></div>
+      <div id="purchaseList" class="record-list"></div>
+    </section>
+
+    <section id="page-settings" class="page">
+      <div class="page-title"><h2>設定與備份</h2><p>管理本機資料及私人雲端同步</p></div>
+      <div class="panel">
+        <h3>Google Drive 同步</h3>
+        <p class="muted">同步至你自己的 Google Drive「猛健樂紀錄」資料夾。需要先設定 Google OAuth 用戶端 ID。</p>
+        <label>Google OAuth Client ID<input id="googleClientId" type="text" placeholder="xxxx.apps.googleusercontent.com" autocomplete="off"></label>
+        <label>資料加密密語<input id="syncPassphrase" type="password" placeholder="自行設定，請妥善保管" autocomplete="new-password"></label>
+        <p class="hint">加密密語不會上傳。忘記密語將無法解密雲端備份。建議使用長且獨特的密語。</p>
+        <div class="stack-buttons"><button id="connectGoogle" class="primary-button" type="button">連結 Google Drive</button><button id="syncNow" class="outline-button" type="button">立即同步</button><button id="disconnectGoogle" class="text-button" type="button">清除本機授權狀態</button></div>
+        <p id="driveMessage" class="muted small">尚未連結 Google Drive。</p>
+      </div>
+      <div class="panel">
+        <h3>本機資料備份</h3>
+        <p class="muted">可下載 JSON 備份，或從先前備份還原。</p>
+        <div class="stack-buttons"><button id="exportData" class="outline-button" type="button">匯出資料 JSON</button><label class="file-button">選擇 JSON 備份還原<input id="importData" type="file" accept="application/json"></label></div>
+      </div>
+      <div class="panel">
+        <h3>應用程式設定</h3>
+        <label>每日飲水目標（ml）<input id="settingsWaterGoal" type="number" min="1" step="50" value="2000"></label>
+        <button id="saveSettings" class="primary-button" type="button">儲存設定</button>
+      </div>
+      <div class="disclaimer">本工具僅供個人紀錄，不提供診斷、劑量調整或治療建議。注射位置示意僅為紀錄區域標籤，實際注射請依藥品仿單及醫療專業人員指示。</div>
+    </section>
+  </main>
+
+  <nav class="bottom-nav">
+    <button class="nav-item active" data-page="home"><span>⌂</span><small>首頁</small></button>
+    <button class="nav-item" data-page="injection"><span>✚</span><small>注射</small></button>
+    <button class="nav-item" data-page="weight"><span>⌁</span><small>體重</small></button>
+    <button class="nav-item" data-page="water"><span>◉</span><small>喝水</small></button>
+    <button class="nav-item" data-page="purchase"><span>$</span><small>花費</small></button>
+  </nav>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="./db.js"></script>
+  <script src="./sync.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
