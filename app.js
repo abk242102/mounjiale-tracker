@@ -125,7 +125,7 @@ function drawChart(data){
 }
 async function editWeight(id){const x=(await TrackerDB.all("weights")).find(a=>a.id===id);if(!x)return;$("weightId").value=x.id;$("weightDate").value=x.date;$("weightValue").value=x.value;$("weightNote").value=x.note||"";$("cancelWeightEdit").classList.remove("hidden");window.scrollTo({top:0,behavior:"smooth"});}
 $("waterDate").onchange=renderWater;
-$("waterGoal").onchange=async()=>{const s=(await TrackerDB.getMeta("settings"))||{waterGoal:2000};s.waterGoal=Number($("waterGoal").value)||2000;await TrackerDB.setMeta("settings",s);renderWater();};
+$("waterGoal").onchange=async()=>{const s=(await TrackerDB.getMeta("settings"))||{waterGoal:2000};s.waterGoal=Number($("waterGoal").value)||2000;await TrackerDB.setMeta("settings",s);DriveSync.localChanged();renderWater();};
 async function addWater(amount){const date=$("waterDate").value;await TrackerDB.put("water",itemRecord("water",{date,amount:Number(amount)}));renderWater();renderHome();}
 document.querySelectorAll("[data-water]").forEach(b=>b.onclick=()=>addWater(Number(b.dataset.water)));
 $("customWaterForm").onsubmit=e=>{e.preventDefault();const v=Number($("customWater").value);if(v<=0)return alert("請輸入有效容量。");addWater(v);$("customWater").value="";};
@@ -146,15 +146,17 @@ async function editPurchase(id){const x=(await TrackerDB.all("purchases")).find(
 function escapeHTML(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 $("exportData").onclick=async()=>{const data=await TrackerDB.snapshot();downloadJSON(data,`mounjiale-backup-${today()}.json`);};
 function downloadJSON(data,name){const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=name;a.click();URL.revokeObjectURL(url);}
-$("importData").onchange=async e=>{const file=e.target.files[0];if(!file)return;try{const data=JSON.parse(await file.text());if(!confirm("還原會覆蓋目前本機資料，確定繼續？"))return;await TrackerDB.replaceAll(data);alert("資料還原完成。");go("home");}catch(err){alert("備份檔格式錯誤："+err.message);}e.target.value="";};
+$("importData").onchange=async e=>{const file=e.target.files[0];if(!file)return;try{const data=JSON.parse(await file.text());if(!confirm("還原會覆蓋目前本機資料，確定繼續？"))return;await TrackerDB.replaceAll(data);DriveSync.localChanged();alert("資料還原完成。");go("home");}catch(err){alert("備份檔格式錯誤："+err.message);}e.target.value="";};
 $("connectGoogle").onclick=async()=>{try{const clientId=$("googleClientId").value.trim(),secret=$("syncPassphrase").value;await DriveSync.connect(clientId,secret);$("syncPassphrase").value="";}catch(e){DriveSync.status("同步設定尚未完成");alert(e.message);}};
 $("syncNow").onclick=async()=>{try{const secret=$("syncPassphrase").value;if(!secret)throw new Error("請輸入加密密語後同步。");await DriveSync.connect($("googleClientId").value.trim(),secret);$("syncPassphrase").value="";}catch(e){alert(e.message);}};
 $("disconnectGoogle").onclick=()=>{DriveSync.disconnect();alert("已清除本機授權狀態。");};
-$("saveSettings").onclick=async()=>{const s=(await TrackerDB.getMeta("settings"))||{};s.waterGoal=Math.max(1,Number($("settingsWaterGoal").value)||2000);await TrackerDB.setMeta("settings",s);$("waterGoal").value=s.waterGoal;alert("設定已儲存。");renderWater();};
-const dbPut=TrackerDB.put.bind(TrackerDB);
-TrackerDB.put=async(store,item)=>{const result=await dbPut(store,item);if(["injections","weights","water","purchases"].includes(store))DriveSync.localChanged();return result;};
+$("saveSettings").onclick=async()=>{const s=(await TrackerDB.getMeta("settings"))||{};s.waterGoal=Math.max(1,Number($("settingsWaterGoal").value)||2000);await TrackerDB.setMeta("settings",s);DriveSync.localChanged();$("waterGoal").value=s.waterGoal;alert("設定已儲存。");renderWater();};
 const originalDBPut=TrackerDB.put.bind(TrackerDB);
-TrackerDB.put=async(store,item)=>{const result=await originalDBPut(store,item);if(["injections","weights","water","purchases"].includes(store))DriveSync.localChanged();return result;};
+TrackerDB.put=async(store,item)=>{
+  const result=await originalDBPut(store,item);
+  if(["injections","weights","water","purchases"].includes(store))DriveSync.localChanged();
+  return result;
+};
 async function init(){
   await TrackerDB.open();setDateDefaults();
   const settings=(await TrackerDB.getMeta("settings"))||{waterGoal:2000};$("settingsWaterGoal").value=settings.waterGoal||2000;
