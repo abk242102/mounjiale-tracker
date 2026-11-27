@@ -119,6 +119,7 @@ ${JSON.stringify(encrypted)}\r
             localStorage.setItem("mounjiale_google_client_id", clientId);
             const c=config(); c.configured=true; localStorage.setItem("mounjiale_sync_config",JSON.stringify(c));
             status("Google Drive 已連結");
+            await sync();
             resolve();
           } catch (error) { reject(error); }
         },
