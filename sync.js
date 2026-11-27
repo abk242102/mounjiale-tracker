@@ -11,7 +11,7 @@ const DriveSync = (() => {
   let tokenClient = null;
   let accessToken = null;
   let folderId = null;
-  let passphrase = "";
+  let passphrase = "";\n  let syncTimer = null;\n  let syncing = false;\n  const config = () => JSON.parse(localStorage.getItem("mounjiale_sync_config") || "{}");
 
   const status = (text) => {
     const el = document.getElementById("syncStatus");
@@ -105,7 +105,7 @@ const DriveSync = (() => {
           accessToken = response.access_token;
           try {
             folderId = await findFolder();
-            localStorage.setItem("mounjiale_google_client_id", clientId);
+            localStorage.setItem("mounjiale_google_client_id", clientId);\n            const c=config(); c.configured=true; localStorage.setItem("mounjiale_sync_config",JSON.stringify(c));
             status("Google Drive 已連結");
             resolve();
           } catch (error) { reject(error); }
@@ -135,10 +135,10 @@ const DriveSync = (() => {
     status("已同步至 Google Drive");
     return merged;
   }
-  function disconnect() {
+  function markPending(message = "待同步") { const c=config(); c.pending=true; localStorage.setItem("mounjiale_sync_config",JSON.stringify(c)); status(message); }\n  function markSuccess() { const c=config(); c.pending=false; c.lastSyncedAt=new Date().toISOString(); localStorage.setItem("mounjiale_sync_config",JSON.stringify(c)); status("已同步・"+new Date(c.lastSyncedAt).toLocaleString("zh-TW",{dateStyle:"short",timeStyle:"short"})); }\n  function localChanged() { markPending(navigator.onLine?"有未同步變更":"離線・待同步"); clearTimeout(syncTimer); syncTimer=setTimeout(()=>{if(accessToken&&passphrase&&navigator.onLine)sync().catch(()=>markPending("同步失敗・待重試"));},1200); }\n  function initialize() { const c=config(); if(c.configured) status(c.pending?"待同步・請重新授權並輸入密語":"上次同步 "+(c.lastSyncedAt?new Date(c.lastSyncedAt).toLocaleString("zh-TW"):"尚無")+"・請重新授權"); window.addEventListener("online",()=>{if(accessToken&&passphrase)sync().catch(()=>markPending("同步失敗・待重試"));else if(config().configured)status("已恢復網路・請重新授權並輸入密語");}); }\n  function disconnect() {
     if (accessToken && window.google?.accounts?.oauth2) google.accounts.oauth2.revoke(accessToken);
     accessToken = null; folderId = null; tokenClient = null; passphrase = "";
     status("尚未連結 Google Drive");
   }
-  return { connect, sync, disconnect, status };
+  return { connect, sync, disconnect, status, localChanged, initialize };
 })();
