@@ -11,7 +11,10 @@ const DriveSync = (() => {
   let tokenClient = null;
   let accessToken = null;
   let folderId = null;
-  let passphrase = "";\n  let syncTimer = null;\n  let syncing = false;\n  const config = () => JSON.parse(localStorage.getItem("mounjiale_sync_config") || "{}");
+  let passphrase = "";
+  let syncTimer = null;
+  let syncing = false;
+  const config = () => JSON.parse(localStorage.getItem("mounjiale_sync_config") || "{}");
 
   const status = (text) => {
     const el = document.getElementById("syncStatus");
@@ -70,7 +73,15 @@ const DriveSync = (() => {
   async function writeFile(id, encrypted) {
     const metadata = { name: DATA_FILE, mimeType: "application/json", ...(id ? {} : { parents: [folderId] }) };
     const boundary = "mounjiale_boundary";
-    const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(encrypted)}\r\n--${boundary}--`;
+    const body = `--${boundary}\r
+Content-Type: application/json; charset=UTF-8\r
+\r
+${JSON.stringify(metadata)}\r
+--${boundary}\r
+Content-Type: application/json\r
+\r
+${JSON.stringify(encrypted)}\r
+--${boundary}--`;
     const url = id
       ? `https://www.googleapis.com/upload/drive/v3/files/${id}?uploadType=multipart`
       : "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart";
@@ -105,7 +116,8 @@ const DriveSync = (() => {
           accessToken = response.access_token;
           try {
             folderId = await findFolder();
-            localStorage.setItem("mounjiale_google_client_id", clientId);\n            const c=config(); c.configured=true; localStorage.setItem("mounjiale_sync_config",JSON.stringify(c));
+            localStorage.setItem("mounjiale_google_client_id", clientId);
+            const c=config(); c.configured=true; localStorage.setItem("mounjiale_sync_config",JSON.stringify(c));
             status("Google Drive 已連結");
             resolve();
           } catch (error) { reject(error); }
@@ -116,26 +128,38 @@ const DriveSync = (() => {
     });
   }
   async function sync() {
-    if (!accessToken || !folderId) throw new Error("請先連結 Google Drive。");
+    if (syncing) return;
+    if (!navigator.onLine) { markPending("離線・待同步"); return; }
+    if (!accessToken || !folderId || !passphrase) throw new Error("請重新授權 Google Drive 並輸入加密密語。");
+    syncing = true;
     status("同步中…");
-    const local = await TrackerDB.snapshot();
-    const file = await findDataFile();
-    if (!file) {
-      await writeFile(null, await encryptObject(local, passphrase));
-      status("已同步至 Google Drive");
-      return;
-    }
-    const encryptedCloud = await readFile(file.id);
-    let cloud;
-    try { cloud = await decryptObject(encryptedCloud, passphrase); }
-    catch { throw new Error("無法解密雲端資料。請確認使用的是建立備份時的相同密語。"); }
-    const merged = merge(local, cloud);
-    await TrackerDB.replaceAll(merged);
-    await writeFile(file.id, await encryptObject(merged, passphrase));
-    status("已同步至 Google Drive");
-    return merged;
+    try {
+      const local = await TrackerDB.snapshot();
+      const file = await findDataFile();
+      if (!file) {
+        await writeFile(null, await encryptObject(local, passphrase));
+        markSuccess();
+        return local;
+      }
+      const encryptedCloud = await readFile(file.id);
+      let cloud;
+      try { cloud = await decryptObject(encryptedCloud, passphrase); }
+      catch { throw new Error("無法解密雲端資料。請確認加密密語；雲端與本機資料均未變更。"); }
+      const merged = merge(local, cloud);
+      await writeFile(file.id, await encryptObject(merged, passphrase));
+      await TrackerDB.replaceAll(merged);
+      markSuccess();
+      return merged;
+    } catch (error) {
+      markPending("同步失敗・待重試");
+      throw error;
+    } finally { syncing = false; }
   }
-  function markPending(message = "待同步") { const c=config(); c.pending=true; localStorage.setItem("mounjiale_sync_config",JSON.stringify(c)); status(message); }\n  function markSuccess() { const c=config(); c.pending=false; c.lastSyncedAt=new Date().toISOString(); localStorage.setItem("mounjiale_sync_config",JSON.stringify(c)); status("已同步・"+new Date(c.lastSyncedAt).toLocaleString("zh-TW",{dateStyle:"short",timeStyle:"short"})); }\n  function localChanged() { markPending(navigator.onLine?"有未同步變更":"離線・待同步"); clearTimeout(syncTimer); syncTimer=setTimeout(()=>{if(accessToken&&passphrase&&navigator.onLine)sync().catch(()=>markPending("同步失敗・待重試"));},1200); }\n  function initialize() { const c=config(); if(c.configured) status(c.pending?"待同步・請重新授權並輸入密語":"上次同步 "+(c.lastSyncedAt?new Date(c.lastSyncedAt).toLocaleString("zh-TW"):"尚無")+"・請重新授權"); window.addEventListener("online",()=>{if(accessToken&&passphrase)sync().catch(()=>markPending("同步失敗・待重試"));else if(config().configured)status("已恢復網路・請重新授權並輸入密語");}); }\n  function disconnect() {
+  function markPending(message = "待同步") { const c=config(); c.pending=true; localStorage.setItem("mounjiale_sync_config",JSON.stringify(c)); status(message); }
+  function markSuccess() { const c=config(); c.pending=false; c.lastSyncedAt=new Date().toISOString(); localStorage.setItem("mounjiale_sync_config",JSON.stringify(c)); status("已同步・"+new Date(c.lastSyncedAt).toLocaleString("zh-TW",{dateStyle:"short",timeStyle:"short"})); }
+  function localChanged() { markPending(navigator.onLine?"有未同步變更":"離線・待同步"); clearTimeout(syncTimer); syncTimer=setTimeout(()=>{if(accessToken&&passphrase&&navigator.onLine)sync().catch(()=>markPending("同步失敗・待重試"));},1200); }
+  function initialize() { const c=config(); if(c.configured) status(c.pending?"待同步・請重新授權並輸入密語":"上次同步 "+(c.lastSyncedAt?new Date(c.lastSyncedAt).toLocaleString("zh-TW"):"尚無")+"・請重新授權"); window.addEventListener("online",()=>{if(accessToken&&passphrase)sync().catch(()=>markPending("同步失敗・待重試"));else if(config().configured)status("已恢復網路・請重新授權並輸入密語");}); }
+  function disconnect() {
     if (accessToken && window.google?.accounts?.oauth2) google.accounts.oauth2.revoke(accessToken);
     accessToken = null; folderId = null; tokenClient = null; passphrase = "";
     status("尚未連結 Google Drive");
