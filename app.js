@@ -148,7 +148,7 @@ $("exportData").onclick=async()=>{const data=await TrackerDB.snapshot();download
 function downloadJSON(data,name){const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=name;a.click();URL.revokeObjectURL(url);}
 $("importData").onchange=async e=>{const file=e.target.files[0];if(!file)return;try{const data=JSON.parse(await file.text());if(!confirm("還原會覆蓋目前本機資料，確定繼續？"))return;await TrackerDB.replaceAll(data);DriveSync.localChanged();alert("資料還原完成。");go("home");}catch(err){alert("備份檔格式錯誤："+err.message);}e.target.value="";};
 $("connectGoogle").onclick=async()=>{try{const clientId=$("googleClientId").value.trim(),secret=$("syncPassphrase").value;await DriveSync.connect(clientId,secret);$("syncPassphrase").value="";}catch(e){DriveSync.status("同步設定尚未完成");alert(e.message);}};
-$("syncNow").onclick=async()=>{try{const secret=$("syncPassphrase").value;if(!secret)throw new Error("請輸入加密密語後同步。");await DriveSync.connect($("googleClientId").value.trim(),secret);$("syncPassphrase").value="";}catch(e){alert(e.message);}};
+$("syncNow").onclick=async()=>{try{const secret=$("syncPassphrase").value;if(!secret)throw new Error("請輸入原本的加密密語後同步。");if(DriveSync.hasAuthorization){await DriveSync.syncWithPassphrase(secret);}else{await DriveSync.connect($("googleClientId").value.trim(),secret);}$("syncPassphrase").value="";}catch(e){alert(e.message);}};
 $("disconnectGoogle").onclick=()=>{DriveSync.disconnect();alert("已清除本機授權狀態。");};
 $("saveSettings").onclick=async()=>{const s=(await TrackerDB.getMeta("settings"))||{};s.waterGoal=Math.max(1,Number($("settingsWaterGoal").value)||2000);await TrackerDB.setMeta("settings",s);DriveSync.localChanged();$("waterGoal").value=s.waterGoal;alert("設定已儲存。");renderWater();};
 const originalDBPut=TrackerDB.put.bind(TrackerDB);
@@ -164,6 +164,16 @@ async function init(){
   DriveSync.initialize();
   await renderHome();
   if("serviceWorker" in navigator) navigator.serviceWorker.register("./service-worker.js").catch(()=>{});
-  const script=document.createElement("script");script.src="https://accounts.google.com/gsi/client";script.async=true;document.head.appendChild(script);
+  const waitForGoogle = async () => {
+    for (let i=0;i<24;i++) {
+      if (window.google?.accounts?.oauth2) {
+        await DriveSync.resumeAuthorization();
+        return;
+      }
+      await new Promise(resolve=>setTimeout(resolve,250));
+    }
+    if (localStorage.getItem("mounjiale_sync_config")) DriveSync.status("同步設定已保留・請手動重新授權");
+  };
+  waitForGoogle();
 }
 init().catch(e=>alert("App 初始化失敗："+e.message));
