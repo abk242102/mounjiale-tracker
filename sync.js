@@ -14,6 +14,7 @@ const DriveSync = (() => {
   let passphrase = "";
   let syncTimer = null;
   let syncing = false;
+  let syncAgain = false;
   const config = () => JSON.parse(localStorage.getItem("mounjiale_sync_config") || "{}");
 
   const status = (text) => {
@@ -129,7 +130,7 @@ ${JSON.stringify(encrypted)}\r
     });
   }
   async function sync() {
-    if (syncing) return;
+    if (syncing) { syncAgain = true; return; }
     if (!navigator.onLine) { markPending("離線・待同步"); return; }
     if (!accessToken || !folderId || !passphrase) throw new Error("請重新授權 Google Drive 並輸入加密密語。");
     syncing = true;
@@ -154,12 +155,47 @@ ${JSON.stringify(encrypted)}\r
     } catch (error) {
       markPending("同步失敗・待重試");
       throw error;
-    } finally { syncing = false; }
+    } finally {
+      syncing = false;
+      if (syncAgain) {
+        syncAgain = false;
+        clearTimeout(syncTimer);
+        syncTimer = setTimeout(() => {
+          if (accessToken && passphrase && navigator.onLine) sync().catch(() => markPending("同步失敗・待重試"));
+        }, 300);
+      }
+    }
   }
   function markPending(message = "待同步") { const c=config(); c.pending=true; localStorage.setItem("mounjiale_sync_config",JSON.stringify(c)); status(message); }
   function markSuccess() { const c=config(); c.pending=false; c.lastSyncedAt=new Date().toISOString(); localStorage.setItem("mounjiale_sync_config",JSON.stringify(c)); status("已同步・"+new Date(c.lastSyncedAt).toLocaleString("zh-TW",{dateStyle:"short",timeStyle:"short"})); }
-  function localChanged() { markPending(navigator.onLine?"有未同步變更":"離線・待同步"); clearTimeout(syncTimer); syncTimer=setTimeout(()=>{if(accessToken&&passphrase&&navigator.onLine)sync().catch(()=>markPending("同步失敗・待重試"));},1200); }
-  function initialize() { const c=config(); if(c.configured) status(c.pending?"待同步・請重新授權並輸入密語":"上次同步 "+(c.lastSyncedAt?new Date(c.lastSyncedAt).toLocaleString("zh-TW"):"尚無")+"・請重新授權"); window.addEventListener("online",()=>{if(accessToken&&passphrase)sync().catch(()=>markPending("同步失敗・待重試"));else if(config().configured)status("已恢復網路・請重新授權並輸入密語");}); }
+  function localChanged() {
+    markPending(navigator.onLine ? "有未同步變更" : "離線・待同步");
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(() => {
+      if (accessToken && passphrase && navigator.onLine) sync().catch(() => markPending("同步失敗・待重試"));
+      else if (syncing) syncAgain = true;
+    }, 1200);
+  }
+  function resumeSync() {
+    if (accessToken && passphrase && navigator.onLine) {
+      sync().catch(() => markPending("同步失敗・待重試"));
+    } else if (config().configured) {
+      status(config().pending ? "有待同步資料・請重新授權並輸入密語" : "同步已設定・請重新授權並輸入密語");
+    }
+  }
+  function initialize() {
+    const c = config();
+    if (c.configured) {
+      const last = c.lastSyncedAt ? new Date(c.lastSyncedAt).toLocaleString("zh-TW", {dateStyle:"short",timeStyle:"short"}) : "尚無";
+      status((c.pending ? "有待同步資料" : "雲端同步已設定") + "・上次同步 " + last + "・重新開啟需授權");
+    } else {
+      status("尚未設定同步");
+    }
+    window.addEventListener("online", resumeSync);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") resumeSync();
+    });
+  }
   function disconnect() {
     if (accessToken && window.google?.accounts?.oauth2) google.accounts.oauth2.revoke(accessToken);
     accessToken = null; folderId = null; tokenClient = null; passphrase = "";
