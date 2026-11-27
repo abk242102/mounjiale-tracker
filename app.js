@@ -151,11 +151,16 @@ $("connectGoogle").onclick=async()=>{try{const clientId=$("googleClientId").valu
 $("syncNow").onclick=async()=>{try{await DriveSync.sync();alert("同步完成。");}catch(e){alert(e.message);DriveSync.status("同步失敗");}};
 $("disconnectGoogle").onclick=()=>{DriveSync.disconnect();alert("已清除本機授權狀態。");};
 $("saveSettings").onclick=async()=>{const s=(await TrackerDB.getMeta("settings"))||{};s.waterGoal=Math.max(1,Number($("settingsWaterGoal").value)||2000);await TrackerDB.setMeta("settings",s);$("waterGoal").value=s.waterGoal;alert("設定已儲存。");renderWater();};
-const dbPut=TrackerDB.put.bind(TrackerDB);\nTrackerDB.put=async(store,item)=>{const result=await dbPut(store,item);if(["injections","weights","water","purchases"].includes(store))DriveSync.localChanged();return result;};\nasync function init(){
+const dbPut=TrackerDB.put.bind(TrackerDB);
+TrackerDB.put=async(store,item)=>{const result=await dbPut(store,item);if(["injections","weights","water","purchases"].includes(store))DriveSync.localChanged();return result;};
+const originalDBPut=TrackerDB.put.bind(TrackerDB);
+TrackerDB.put=async(store,item)=>{const result=await originalDBPut(store,item);if(["injections","weights","water","purchases"].includes(store))DriveSync.localChanged();return result;};
+async function init(){
   await TrackerDB.open();setDateDefaults();
   const settings=(await TrackerDB.getMeta("settings"))||{waterGoal:2000};$("settingsWaterGoal").value=settings.waterGoal||2000;
   $("googleClientId").value=localStorage.getItem("mounjiale_google_client_id")||"";
-  DriveSync.initialize();\n  await renderHome();
+  DriveSync.initialize();
+  await renderHome();
   if("serviceWorker" in navigator) navigator.serviceWorker.register("./service-worker.js").catch(()=>{});
   const script=document.createElement("script");script.src="https://accounts.google.com/gsi/client";script.async=true;document.head.appendChild(script);
 }
