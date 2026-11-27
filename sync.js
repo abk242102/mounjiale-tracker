@@ -129,6 +129,57 @@ ${JSON.stringify(encrypted)}\r
       tokenClient.requestAccessToken({ prompt: "consent" });
     });
   }
+  async function resumeAuthorization() {
+    const c = config();
+    const clientId = localStorage.getItem("mounjiale_google_client_id");
+    if (!c.configured || !clientId || accessToken) return;
+    if (!window.google?.accounts?.oauth2) {
+      status("同步設定已保留・Google 授權程式載入中");
+      return;
+    }
+    status("正在嘗試恢復 Google 授權…");
+    return new Promise(resolve => {
+      try {
+        tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: DRIVE_SCOPE,
+          callback: async response => {
+            if (response.error || !response.access_token) {
+              status("同步設定已保留・請手動重新授權");
+              resolve(false);
+              return;
+            }
+            accessToken = response.access_token;
+            try {
+              folderId = await findFolder();
+              status("Google 已恢復授權・請輸入加密密語後同步");
+              resolve(true);
+            } catch (error) {
+              accessToken = null;
+              folderId = null;
+              status("恢復授權失敗・請手動重新連結");
+              resolve(false);
+            }
+          },
+          error_callback: () => {
+            status("同步設定已保留・請手動重新授權");
+            resolve(false);
+          }
+        });
+        // 空 prompt 僅嘗試沿用既有授權，不主動要求同意畫面。
+        tokenClient.requestAccessToken({ prompt: "" });
+      } catch (error) {
+        status("同步設定已保留・請手動重新授權");
+        resolve(false);
+      }
+    });
+  }
+  async function syncWithPassphrase(secret) {
+    if (!secret || secret.length < 10) throw new Error("請輸入原本至少 10 個字元的加密密語。");
+    if (!accessToken || !folderId) throw new Error("尚未取得 Google 授權，請先按「連結 Google Drive」。");
+    passphrase = secret;
+    await sync();
+  }
   async function sync() {
     if (syncing) { syncAgain = true; return; }
     if (!navigator.onLine) { markPending("離線・待同步"); return; }
@@ -196,10 +247,11 @@ ${JSON.stringify(encrypted)}\r
       if (document.visibilityState === "visible") resumeSync();
     });
   }
+  function hasAuthorization() { return !!(accessToken && folderId); }
   function disconnect() {
     if (accessToken && window.google?.accounts?.oauth2) google.accounts.oauth2.revoke(accessToken);
     accessToken = null; folderId = null; tokenClient = null; passphrase = "";
     status("尚未連結 Google Drive");
   }
-  return { connect, sync, disconnect, status, localChanged, initialize };
+  return { connect, sync, syncWithPassphrase, resumeAuthorization, hasAuthorization, disconnect, status, localChanged, initialize };
 })();
