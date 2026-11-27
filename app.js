@@ -147,15 +147,15 @@ function escapeHTML(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":
 $("exportData").onclick=async()=>{const data=await TrackerDB.snapshot();downloadJSON(data,`mounjiale-backup-${today()}.json`);};
 function downloadJSON(data,name){const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=name;a.click();URL.revokeObjectURL(url);}
 $("importData").onchange=async e=>{const file=e.target.files[0];if(!file)return;try{const data=JSON.parse(await file.text());if(!confirm("還原會覆蓋目前本機資料，確定繼續？"))return;await TrackerDB.replaceAll(data);alert("資料還原完成。");go("home");}catch(err){alert("備份檔格式錯誤："+err.message);}e.target.value="";};
-$("connectGoogle").onclick=async()=>{try{const clientId=$("googleClientId").value.trim(),secret=$("syncPassphrase").value;await DriveSync.connect(clientId,secret);await DriveSync.sync();alert("Google Drive 已連結並完成首次同步。");}catch(e){DriveSync.status("同步設定尚未完成");alert(e.message);}};
+$("connectGoogle").onclick=async()=>{try{const clientId=$("googleClientId").value.trim(),secret=$("syncPassphrase").value;await DriveSync.connect(clientId,secret);$("syncPassphrase").value="";}catch(e){DriveSync.status("同步設定尚未完成");alert(e.message);}};
 $("syncNow").onclick=async()=>{try{await DriveSync.sync();alert("同步完成。");}catch(e){alert(e.message);DriveSync.status("同步失敗");}};
 $("disconnectGoogle").onclick=()=>{DriveSync.disconnect();alert("已清除本機授權狀態。");};
 $("saveSettings").onclick=async()=>{const s=(await TrackerDB.getMeta("settings"))||{};s.waterGoal=Math.max(1,Number($("settingsWaterGoal").value)||2000);await TrackerDB.setMeta("settings",s);$("waterGoal").value=s.waterGoal;alert("設定已儲存。");renderWater();};
-async function init(){
+const dbPut=TrackerDB.put.bind(TrackerDB);\nTrackerDB.put=async(store,item)=>{const result=await dbPut(store,item);if(["injections","weights","water","purchases"].includes(store))DriveSync.localChanged();return result;};\nasync function init(){
   await TrackerDB.open();setDateDefaults();
   const settings=(await TrackerDB.getMeta("settings"))||{waterGoal:2000};$("settingsWaterGoal").value=settings.waterGoal||2000;
   $("googleClientId").value=localStorage.getItem("mounjiale_google_client_id")||"";
-  await renderHome();
+  DriveSync.initialize();\n  await renderHome();
   if("serviceWorker" in navigator) navigator.serviceWorker.register("./service-worker.js").catch(()=>{});
   const script=document.createElement("script");script.src="https://accounts.google.com/gsi/client";script.async=true;document.head.appendChild(script);
 }
