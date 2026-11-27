@@ -140,7 +140,7 @@
         <h3>Google Drive 同步</h3>
         <p class="muted">同步至你自己的 Google Drive「猛健樂紀錄」資料夾。需要先設定 Google OAuth 用戶端 ID。</p>
         <label>Google OAuth Client ID<input id="googleClientId" type="text" placeholder="xxxx.apps.googleusercontent.com" autocomplete="off"></label>
-        <label>資料加密密語<input id="syncPassphrase" type="password" placeholder="自行設定，請妥善保管" autocomplete="new-password"></label>
+        <label>資料加密密語<input id="syncPassphrase" type="password" placeholder="自行設定，請妥善保管" autocomplete="off"></label>
         <p class="hint">加密密語不會上傳。忘記密語將無法解密雲端備份。建議使用長且獨特的密語。</p>
         <div class="stack-buttons"><button id="connectGoogle" class="primary-button" type="button">連結 Google Drive</button><button id="syncNow" class="outline-button" type="button">立即同步</button><button id="disconnectGoogle" class="text-button" type="button">清除本機授權狀態</button></div>
         <p id="driveMessage" class="muted small">尚未連結 Google Drive。</p>
